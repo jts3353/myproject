@@ -1,0 +1,698 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CT 기반 내연기관 컴퓨팅 사고력 챌린지</title>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <style>
+        :root {
+            --primary: #4f46e5;
+            --primary-hover: #4338ca;
+            --bg: #f8fafc;
+            --card-bg: #ffffff;
+            --text: #1e293b;
+            --accent-yellow: #fef08a;
+            --border: #e2e8f0;
+            --correct: #10b981;
+            --incorrect: #ef4444;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Pretendard', sans-serif; }
+        body { background-color: var(--bg); color: var(--text); padding: 20px; display: flex; justify-content: center; }
+        .container { width: 100%; max-width: 900px; background: var(--card-bg); border-radius: 20px; padding: 30px; box-shadow: 0 10px 25px rgba(0,0,0,0.05); }
+        
+        /* Step Navigation */
+        .ct-nav { display: flex; gap: 8px; margin-bottom: 25px; background: #f1f5f9; padding: 6px; border-radius: 14px; overflow-x: auto; }
+        .nav-btn { flex: 1; min-width: 100px; padding: 10px 8px; border: none; border-radius: 10px; background: transparent; font-weight: 700; font-size: 0.85rem; color: #64748b; cursor: pointer; transition: all 0.2s; text-align: center; }
+        .nav-btn.active { background: var(--primary); color: #fff; box-shadow: 0 2px 8px rgba(79, 70, 229, 0.3); }
+
+        .step-panel { display: none; }
+        .step-panel.active { display: block; animation: fadeIn 0.3s ease; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* Canvas Simulator */
+        .simulation-card { background: #1e293b; border-radius: 16px; padding: 15px; margin-bottom: 20px; text-align: center; }
+        .sim-header { color: #94a3b8; font-size: 0.85rem; font-weight: 600; display: flex; justify-content: space-between; margin-bottom: 8px; padding: 0 10px; }
+        canvas { width: 100%; height: auto; max-height: 200px; display: block; }
+
+        /* Common Elements */
+        h2 { font-size: 1.3rem; margin-bottom: 10px; color: var(--primary); }
+        .desc { background: #f8fafc; border: 1px solid var(--border); padding: 12px 16px; border-radius: 10px; font-size: 0.9rem; line-height: 1.5; margin-bottom: 20px; }
+        .action-btns { display: flex; gap: 10px; margin-top: 20px; }
+        .btn { flex: 1; padding: 12px; border: none; border-radius: 10px; font-weight: 700; font-size: 0.95rem; cursor: pointer; transition: 0.2s; }
+        .btn-primary { background: var(--primary); color: white; }
+        .btn-primary:hover { background: var(--primary-hover); }
+        .btn-next { background: var(--correct); color: white; }
+
+        /* Step 1: Drag and Drop */
+        .drag-container { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px; min-height: 190px; }
+        .drag-card { background: #ffffff; border: 2px solid var(--border); padding: 10px; border-radius: 12px; cursor: grab; text-align: center; box-shadow: 0 2px 5px rgba(0,0,0,0.03); transition: transform 0.1s, border-color 0.2s; }
+        .drag-card:hover { border-color: var(--primary); }
+        .drag-card.dragging { opacity: 0.4; }
+        .drag-card .card-title { font-weight: bold; font-size: 0.85rem; margin-bottom: 4px; color: #334155; }
+        .drag-card .card-sub { font-size: 0.75rem; color: #64748b; margin-bottom: 8px; font-weight: 600; }
+        .drag-card svg { width: 100%; height: 110px; display: block; background: #f8fafc; border-radius: 8px; }
+
+        .drop-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+        .drop-zone { border: 2px dashed #cbd5e1; border-radius: 12px; padding: 12px; min-height: 190px; background: #fafafa; text-align: center; display: flex; flex-direction: column; align-items: center; }
+        .drop-zone h4 { font-size: 0.95rem; color: var(--primary); margin-bottom: 2px; }
+        .drop-zone p { font-size: 0.8rem; color: #64748b; margin-bottom: 10px; }
+        .drop-zone .drag-card { width: 100%; margin: 0; cursor: grab; }
+
+        /* Step Options */
+        .options-grid { display: grid; grid-template-columns: 1fr; gap: 10px; margin-top: 15px; }
+        .opt-btn { background: #fff; border: 2px solid var(--border); border-radius: 10px; padding: 12px 15px; text-align: left; font-size: 0.95rem; cursor: pointer; display: flex; align-items: center; gap: 10px; }
+        .opt-btn:hover { border-color: var(--primary); }
+        .opt-btn.selected { border-color: var(--primary); background: #eff6ff; }
+        .opt-badge { width: 24px; height: 24px; border-radius: 50%; background: #e2e8f0; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; font-weight: bold; flex-shrink: 0; }
+
+        /* Step 2 Rule Box */
+        .rule-box { background: #eef2ff; border: 2px dashed var(--primary); padding: 15px; border-radius: 12px; text-align: center; margin-bottom: 15px; }
+        .rule-title { font-weight: bold; color: var(--primary); font-size: 1.05rem; margin-bottom: 6px; }
+        .rule-flow { display: flex; justify-content: center; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+        .flow-item { background: white; border: 1px solid #c7d2fe; padding: 6px 12px; border-radius: 8px; font-size: 0.9rem; color: #1e1b4b; }
+        .flow-arrow { font-size: 0.9rem; color: var(--primary); font-weight: bold; }
+
+        /* Step 4: Pseudocode Block Styles */
+        .code-block { background: #0f172a; color: #f8fafc; border-radius: 14px; padding: 20px; font-family: 'Courier New', Courier, monospace; font-size: 0.95rem; line-height: 2; box-shadow: inset 0 2px 6px rgba(0,0,0,0.4); }
+        .code-line { margin-bottom: 8px; display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+        .code-indent { margin-left: 24px; }
+        .code-keyword { color: #f43f5e; font-weight: bold; }
+        .code-select { background: #1e293b; color: #facc15; border: 1px solid #475569; padding: 6px 10px; border-radius: 6px; font-size: 0.9rem; font-weight: bold; outline: none; cursor: pointer; }
+        .code-select:focus { border-color: #38bdf8; }
+
+        /* Table */
+        .table-wrap { overflow-x: auto; margin-bottom: 15px; border-radius: 10px; border: 1px solid var(--border); }
+        table { width: 100%; border-collapse: collapse; text-align: center; font-size: 0.85rem; }
+        th, td { padding: 10px; border: 1px solid var(--border); }
+        th { background: #f8fafc; }
+        .blank-cell { background: var(--accent-yellow); font-weight: bold; }
+
+        /* Result & Hint Box */
+        .msg-box { padding: 12px; border-radius: 10px; font-size: 0.9rem; margin-top: 15px; display: none; }
+        .msg-success { background: #ecfdf5; border: 1px solid #10b981; color: #065f46; }
+        .msg-error { background: #fef2f2; border: 1px solid #ef4444; color: #991b1b; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <!-- CT Navigation -->
+    <div class="ct-nav">
+        <button class="nav-btn active" onclick="switchStep(1)">1. 문제 분해</button>
+        <button class="nav-btn" onclick="switchStep(2)">2. 추상화</button>
+        <button class="nav-btn" onclick="switchStep(3)">3. 패턴 인식</button>
+        <button class="nav-btn" onclick="switchStep(4)">4. 알고리즘</button>
+        <button class="nav-btn" onclick="switchStep(5)">🏆 최종 챌린지</button>
+    </div>
+
+    <!-- Live Simulation Header -->
+    <div class="simulation-card">
+        <div class="sim-header">
+            <span id="simTitle">⚙️ 내연기관 시뮬레이터</span>
+            <span style="color: #38bdf8;" id="simStatus">실시간 애니메이션 동작 중</span>
+        </div>
+        <canvas id="engineCanvas" width="800" height="180"></canvas>
+    </div>
+
+    <!-- STEP 1: 문제 분해 -->
+    <div id="step1" class="step-panel active">
+        <h2>🧩 Step 1. 문제 분해 (Decomposition)</h2>
+        <div class="desc">💡 <strong>쉬운 가이드:</strong> 그림 속의 <strong>[화살표 방향]</strong>, <strong>[불꽃]</strong>, <strong>[열린 문]</strong>을 관찰하여 힌트 설명과 어울리는 알맞은 위치로 드래그하세요!</div>
+        
+        <div class="drag-container" id="dragSource">
+            <!-- 카드 A: 흡입 -->
+            <div class="drag-card" draggable="true" data-match="흡입" id="cardA">
+                <div class="card-title">[그림 A]</div>
+                <div class="card-sub">📥 왼쪽 문 열림 + 아래로 내려감</div>
+                <svg viewBox="0 0 100 120">
+                    <rect x="25" y="20" width="50" height="80" fill="none" stroke="#475569" stroke-width="3"/>
+                    <line x1="20" y1="12" x2="32" y2="28" stroke="#0ea5e9" stroke-width="3"/> 
+                    <line x1="70" y1="20" x2="80" y2="20" stroke="#475569" stroke-width="3"/>
+                    <rect x="28" y="65" width="44" height="20" fill="#cbd5e1"/> 
+                    <path d="M 22 15 Q 35 35 45 50" stroke="#0ea5e9" stroke-width="3" fill="none"/>
+                    <text x="50" y="80" font-size="14" fill="#0284c7" font-weight="bold" text-anchor="middle">↓</text>
+                </svg>
+            </div>
+
+            <!-- 카드 B: 압축 -->
+            <div class="drag-card" draggable="true" data-match="압축" id="cardB">
+                <div class="card-title">[그림 B]</div>
+                <div class="card-sub">🔒 양쪽 문 닫힘 + 위로 꾹 누름</div>
+                <svg viewBox="0 0 100 120">
+                    <rect x="25" y="20" width="50" height="80" fill="none" stroke="#475569" stroke-width="3"/>
+                    <line x1="20" y1="20" x2="30" y2="20" stroke="#475569" stroke-width="3"/> 
+                    <line x1="70" y1="20" x2="80" y2="20" stroke="#475569" stroke-width="3"/>
+                    <rect x="28" y="35" width="44" height="20" fill="#cbd5e1"/> 
+                    <text x="50" y="50" font-size="14" fill="#ea580c" font-weight="bold" text-anchor="middle">↑</text>
+                </svg>
+            </div>
+
+            <!-- 카드 C: 폭발 -->
+            <div class="drag-card" draggable="true" data-match="폭발" id="cardC">
+                <div class="card-title">[그림 C]</div>
+                <div class="card-sub">💥 불꽃 팡! + 세게 튕겨나감</div>
+                <svg viewBox="0 0 100 120">
+                    <rect x="25" y="20" width="50" height="80" fill="none" stroke="#475569" stroke-width="3"/>
+                    <line x1="20" y1="20" x2="30" y2="20" stroke="#475569" stroke-width="3"/>
+                    <line x1="70" y1="20" x2="80" y2="20" stroke="#475569" stroke-width="3"/>
+                    <polygon points="50,20 45,30 52,28 48,38 58,26 51,26" fill="#eab308"/> 
+                    <rect x="28" y="70" width="44" height="20" fill="#cbd5e1"/> 
+                    <text x="50" y="86" font-size="16" fill="#dc2626" font-weight="bold" text-anchor="middle">↓↓</text>
+                </svg>
+            </div>
+
+            <!-- 카드 D: 배기 -->
+            <div class="drag-card" draggable="true" data-match="배기" id="cardD">
+                <div class="card-title">[그림 D]</div>
+                <div class="card-sub">📤 오른쪽 문 열림 + 밖으로 밀어냄</div>
+                <svg viewBox="0 0 100 120">
+                    <rect x="25" y="20" width="50" height="80" fill="none" stroke="#475569" stroke-width="3"/>
+                    <line x1="20" y1="20" x2="30" y2="20" stroke="#475569" stroke-width="3"/>
+                    <line x1="80" y1="12" x2="68" y2="28" stroke="#ef4444" stroke-width="3"/> 
+                    <rect x="28" y="35" width="44" height="20" fill="#cbd5e1"/> 
+                    <path d="M 52 32 Q 60 25 75 15" stroke="#ef4444" stroke-width="3" fill="none"/>
+                    <text x="50" y="50" font-size="14" fill="#475569" font-weight="bold" text-anchor="middle">↑</text>
+                </svg>
+            </div>
+        </div>
+
+        <div class="drop-grid">
+            <div class="drop-zone" data-target="흡입">
+                <h4>1. 흡입 (공기 빨아들이기)</h4>
+                <p>문이 열리며 아래로 내려가 공기를 넣는 그림</p>
+            </div>
+            <div class="drop-zone" data-target="압축">
+                <h4>2. 압축 (꾹 눌러 모으기)</h4>
+                <p>문이 닫힌 채 위로 올려 꽉 누르는 그림</p>
+            </div>
+            <div class="drop-zone" data-target="폭발">
+                <h4>3. 폭발 (불꽃으로 힘 얻기)</h4>
+                <p>불꽃이 터지며 아래로 강하게 밀려나는 그림</p>
+            </div>
+            <div class="drop-zone" data-target="배기">
+                <h4>4. 배기 (연기 밖으로 뿜기)</h4>
+                <p>다른 문이 열리며 위로 올라가 밖으로 내보내는 그림</p>
+            </div>
+        </div>
+
+        <div class="action-btns">
+            <button class="btn btn-primary" onclick="checkStep1()">검증하기</button>
+        </div>
+        <div id="msg1" class="msg-box"></div>
+    </div>
+
+    <!-- STEP 2: 추상화 -->
+    <div id="step2" class="step-panel">
+        <h2>📐 Step 2. 추상화 (Abstraction)</h2>
+        <div class="desc">
+            복잡한 부품 설명은 다 빼고, 엔진이 움직이는 <strong>[4단계의 핵심 논리 순서]</strong>만 단순하게 연결해봅시다.
+        </div>
+
+        <div class="rule-box">
+            <div class="rule-title">💡 엔진 동작의 핵심 과정 (4단계 비유)</div>
+            <div class="rule-flow">
+                <span class="flow-item">1. 밥 먹기 (흡입)</span>
+                <span class="flow-arrow">➔</span>
+                <span class="flow-item">2. 씹기 (압축)</span>
+                <span class="flow-arrow">➔</span>
+                <span class="flow-item">3. 에너지 내기 (폭발)</span>
+                <span class="flow-arrow">➔</span>
+                <span class="flow-item">4. 소화하기 (배기)</span>
+            </div>
+        </div>
+
+        <div style="font-weight: bold; margin-bottom: 10px; font-size: 1rem;">
+            ❓ Q. 엔진이 끊임없이 힘을 내기 위한 **올바른 4단계 순서 규칙**은 무엇일까요?
+        </div>
+
+        <div class="options-grid" id="optStep2"></div>
+        <div class="action-btns">
+            <button class="btn btn-primary" onclick="checkStep2()">정답 제출</button>
+        </div>
+        <div id="msg2" class="msg-box"></div>
+    </div>
+
+    <!-- STEP 3: 패턴 인식 -->
+    <div id="step3" class="step-panel">
+        <h2>🔄 Step 3. 패턴 인식 (Pattern Recognition)</h2>
+        <div class="desc">기통 수와 무관하게 4행정 엔진은 <strong>[흡입 → 압축 → 폭발 → 배기]</strong> 순서가 끊임없이 순환합니다.<br>어떤 실린더가 현재 <strong>[배기]</strong> 행정을 마쳤습니다. 바로 다음 단계의 행정은 무엇입니까?</div>
+        <div class="options-grid" id="optStep3"></div>
+        <div class="action-btns">
+            <button class="btn btn-primary" onclick="checkStep3()">정답 제출</button>
+        </div>
+        <div id="msg3" class="msg-box"></div>
+    </div>
+
+    <!-- STEP 4: 알고리즘 (개선된 흡입-압축-폭발-배기 순서 제어 알고리즘) -->
+    <div id="step4" class="step-panel">
+        <h2>🤖 Step 4. 알고리즘 개발 (Algorithm Design)</h2>
+        <div class="desc">
+            엔진 1사이클을 제어하는 <strong>[4행정 순차 알고리즘]</strong>을 완성하려고 합니다.<br>
+            각 단계별 동작 흐름에 맞게 빈칸 블록의 명령을 알맞게 선택하세요!
+        </div>
+
+        <div class="code-block">
+            <div class="code-line">⚙️ // 4행정 엔진 동작 제어 알고리즘 (1-Cycle)</div>
+            
+            <div class="code-line">
+                <span class="code-keyword">1단계:</span> [공기와 연료를 빨아들인다] ➔ 
+                <select id="codeBlock1" class="code-select"></select>
+            </div>
+
+            <div class="code-line">
+                <span class="code-keyword">2단계:</span> [가스를 꽉 눌러 모운다] ➔ 
+                <select id="codeBlock2" class="code-select"></select>
+            </div>
+
+            <div class="code-line">
+                <span class="code-keyword">3단계:</span> 
+                <select id="codeBlock3" class="code-select"></select> ➔ [피스톤을 밀어내 힘을 생성한다]
+            </div>
+
+            <div class="code-line">
+                <span class="code-keyword">4단계:</span> [남은 연소 가스를 밖으로 배출한다] ➔ 
+                <select id="codeBlock4" class="code-select"></select>
+            </div>
+        </div>
+
+        <div class="action-btns">
+            <button class="btn btn-primary" onclick="checkStep4()">알고리즘 코드 검증하기</button>
+        </div>
+        <div id="msg4" class="msg-box"></div>
+    </div>
+
+    <!-- STEP 5: 최종 챌린지 -->
+    <div id="step5" class="step-panel">
+        <h2>🏆 Final Challenge: 무작위 기통 엔진 행정 맞추기</h2>
+        <div class="desc">이 문제는 <strong>2기통, 4기통, 6기통, 8기통</strong> 엔진 중 무작위로 출제됩니다. 시뮬레이션 및 표의 규칙을 이용해 빈칸을 맞혀보세요!</div>
+        
+        <div class="table-wrap">
+            <table>
+                <thead id="finalTableHead"></thead>
+                <tbody id="finalTableBody"></tbody>
+            </table>
+        </div>
+
+        <div style="font-weight: bold; margin-bottom: 10px;">정답 선택:</div>
+        <div class="options-grid" id="optStep5"></div>
+
+        <div class="action-btns">
+            <button class="btn btn-primary" id="btnCheck5" onclick="checkStep5()">정답 제출</button>
+            <button class="btn btn-next" id="btnNext5" style="display:none;" onclick="initFinalChallenge()">다음 문제 풀어보기 ➔</button>
+        </div>
+        <div id="msg5" class="msg-box"></div>
+    </div>
+</div>
+
+<script>
+    const STAGES = ["흡입", "압축", "폭발", "배기"];
+    let currentStep = 1;
+    let selectedOpts = { 2: null, 3: null, 5: null };
+
+    // 데이터 정의 및 정답 값 저장
+    const step2Data = [
+        { text: "폭발 ➔ 흡입 ➔ 배기 ➔ 압축", correct: false },
+        { text: "흡입 ➔ 압축 ➔ 폭발 ➔ 배기", correct: true },
+        { text: "압축 ➔ 배기 ➔ 흡입 ➔ 폭발", correct: false },
+        { text: "배기 ➔ 폭발 ➔ 압축 ➔ 흡입", correct: false }
+    ];
+
+    const step3Data = [
+        { text: "압축", correct: false },
+        { text: "폭발", correct: false },
+        { text: "흡입", correct: true },
+        { text: "배기", correct: false }
+    ];
+
+    // 새롭게 단순화된 Step 4 문제 데이터
+    const step4Selects = {
+        block1: [
+            { text: "흡입 (Intake)", correct: true },
+            { text: "압축 (Compression)", correct: false },
+            { text: "폭발 (Power)", correct: false },
+            { text: "배기 (Exhaust)", correct: false }
+        ],
+        block2: [
+            { text: "흡입 (Intake)", correct: false },
+            { text: "압축 (Compression)", correct: true },
+            { text: "폭발 (Power)", correct: false },
+            { text: "배기 (Exhaust)", correct: false }
+        ],
+        block3: [
+            { text: "불꽃 점화 💥", correct: true },
+            { text: "밸브 닫기 🔒", correct: false },
+            { text: "연기 배출 📤", correct: false }
+        ],
+        block4: [
+            { text: "흡입 (Intake)", correct: false },
+            { text: "압축 (Compression)", correct: false },
+            { text: "폭발 (Power)", correct: false },
+            { text: "배기 (Exhaust)", correct: true }
+        ]
+    };
+
+    // Engine Sim Variables
+    let currentCylinderCount = 4;
+    let cylinderOffsets = [0, 1, 2, 3];
+    let engineAngle = 0;
+    let canvas, ctx;
+
+    // Helper Functions: Fisher-Yates Shuffle Algorithm
+    function shuffleArray(array) {
+        let arr = [...array];
+        for (let i = arr.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [arr[i], arr[j]] = [arr[j], arr[i]];
+        }
+        return arr;
+    }
+
+    // Step 1: 카드 위치 초기화 및 무작위 셔플
+    function shuffleStep1Cards() {
+        const dragSource = document.getElementById('dragSource');
+        const cards = Array.from(document.querySelectorAll('.drag-card'));
+        const shuffledCards = shuffleArray(cards);
+        shuffledCards.forEach(card => dragSource.appendChild(card));
+    }
+
+    // Step 2 & 3: 객관식 보기 렌더링
+    function renderStepOptions(stepNum, dataList) {
+        selectedOpts[stepNum] = null;
+        const container = document.getElementById(`optStep${stepNum}`);
+        container.innerHTML = '';
+        
+        const shuffled = shuffleArray(dataList);
+        shuffled.forEach((item, idx) => {
+            const btn = document.createElement('div');
+            btn.className = 'opt-btn';
+            btn.dataset.correct = item.correct;
+            btn.onclick = () => selectOpt(btn, stepNum, item.correct);
+            btn.innerHTML = `<span class="opt-badge">${String.fromCharCode(65 + idx)}</span> <span>${item.text}</span>`;
+            container.appendChild(btn);
+        });
+    }
+
+    // Step 4: 드롭다운 옵션 셔플 및 렌더링
+    function renderStep4Options() {
+        ['block1', 'block2', 'block3', 'block4'].forEach((blockKey, idx) => {
+            const selectEl = document.getElementById(`codeBlock${idx + 1}`);
+            selectEl.innerHTML = '<option value="">-- 선택 --</option>';
+            const shuffled = shuffleArray(step4Selects[blockKey]);
+            shuffled.forEach(opt => {
+                const optionEl = document.createElement('option');
+                optionEl.value = opt.text;
+                optionEl.dataset.correct = opt.correct;
+                optionEl.textContent = opt.text;
+                selectEl.appendChild(optionEl);
+            });
+        });
+    }
+
+    // Drag and Drop Initializer
+    function bindDragEvents() {
+        document.querySelectorAll('.drag-card').forEach(card => {
+            card.addEventListener('dragstart', e => {
+                e.dataTransfer.setData('text/plain', e.currentTarget.dataset.match);
+                e.currentTarget.classList.add('dragging');
+            });
+            card.addEventListener('dragend', e => e.currentTarget.classList.remove('dragging'));
+        });
+
+        document.querySelectorAll('.drop-zone').forEach(zone => {
+            zone.addEventListener('dragover', e => e.preventDefault());
+            zone.addEventListener('drop', e => {
+                e.preventDefault();
+                const match = e.dataTransfer.getData('text/plain');
+                const draggedEl = document.querySelector(`.drag-card[data-match="${match}"]`);
+                if (draggedEl) zone.appendChild(draggedEl);
+            });
+        });
+    }
+
+    function switchStep(step) {
+        currentStep = step;
+        document.querySelectorAll('.nav-btn').forEach((btn, idx) => {
+            btn.classList.toggle('active', idx + 1 === step);
+        });
+        document.querySelectorAll('.step-panel').forEach((panel, idx) => {
+            panel.classList.toggle('active', idx + 1 === step);
+        });
+
+        if (step === 1) {
+            setupSimulator(4);
+            shuffleStep1Cards();
+        } else if (step === 2) {
+            setupSimulator(4);
+            renderStepOptions(2, step2Data);
+        } else if (step === 3) {
+            setupSimulator(6);
+            renderStepOptions(3, step3Data);
+        } else if (step === 4) {
+            setupSimulator(4);
+            renderStep4Options();
+        } else if (step === 5) {
+            initFinalChallenge();
+        }
+    }
+
+    function selectOpt(el, step, isCorrect) {
+        selectedOpts[step] = isCorrect;
+        const parent = el.parentElement;
+        parent.querySelectorAll('.opt-btn').forEach(btn => btn.classList.remove('selected'));
+        el.classList.add('selected');
+    }
+
+    function setupSimulator(cylCount) {
+        currentCylinderCount = cylCount;
+        cylinderOffsets = [];
+        for (let i = 0; i < cylCount; i++) {
+            cylinderOffsets.push(i % 4);
+        }
+        document.getElementById('simTitle').innerText = `⚙️ ${cylCount}기통 내연기관 실시간 시뮬레이터`;
+    }
+
+    // Canvas Renderer
+    function renderEngine() {
+        if (!ctx) return;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        engineAngle += 0.03;
+
+        const count = currentCylinderCount;
+        const gap = canvas.width / (count + 1);
+        const cylWidth = Math.min(50, gap * 0.7);
+        const crankY = 130;
+        const crankRadius = 18;
+
+        for (let i = 0; i < count; i++) {
+            const x = gap * (i + 1) - cylWidth / 2;
+            const phase = (cylinderOffsets[i] || 0) * (Math.PI / 2);
+            const angle = engineAngle + phase;
+
+            const pistonY = 35 + (Math.sin(angle) + 1) * 15;
+            const crankX = x + cylWidth / 2 + Math.cos(angle) * crankRadius;
+            const crankCurrY = crankY + Math.sin(angle) * crankRadius;
+
+            ctx.strokeStyle = "#475569";
+            ctx.lineWidth = 2;
+            ctx.strokeRect(x, 25, cylWidth, 80);
+
+            const stageIdx = Math.floor(((angle % (Math.PI * 2)) / (Math.PI * 2)) * 4) % 4;
+            const colors = ["rgba(56,189,248,0.3)", "rgba(251,146,60,0.3)", "rgba(239,68,68,0.5)", "rgba(148,163,184,0.3)"];
+            ctx.fillStyle = colors[stageIdx] || colors[0];
+            ctx.fillRect(x + 2, 27, cylWidth - 4, pistonY - 25);
+
+            if (stageIdx === 2) {
+                ctx.fillStyle = "#facc15";
+                ctx.beginPath();
+                ctx.arc(x + cylWidth / 2, 30, 5, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            ctx.strokeStyle = "#94a3b8";
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(x + cylWidth / 2, pistonY + 15);
+            ctx.lineTo(crankX, crankCurrY);
+            ctx.stroke();
+
+            ctx.fillStyle = "#cbd5e1";
+            ctx.fillRect(x + 3, pistonY, cylWidth - 6, 18);
+
+            ctx.fillStyle = "#38bdf8";
+            ctx.font = "11px sans-serif";
+            ctx.textAlign = "center";
+            ctx.fillText(`${i + 1}번`, x + cylWidth / 2, 18);
+        }
+
+        requestAnimationFrame(renderEngine);
+    }
+
+    function checkStep1() {
+        let ok = true;
+        document.querySelectorAll('.drop-zone').forEach(zone => {
+            const target = zone.dataset.target;
+            const child = zone.querySelector('.drag-card');
+            if (!child || child.dataset.match !== target) ok = false;
+        });
+
+        const msg = document.getElementById('msg1');
+        msg.style.display = 'block';
+        if (ok) {
+            msg.className = "msg-box msg-success";
+            msg.innerHTML = "🎉 정답입니다! 그림 속 특징을 잘 파악하여 알맞은 단계에 연결하셨습니다.";
+            confetti({ particleCount: 50 });
+        } else {
+            msg.className = "msg-box msg-error";
+            msg.innerHTML = "❌ 오답입니다! 카드가 처음 위치로 다시 섞입니다. 힌트를 보며 다시 도전해보세요!";
+            shuffleStep1Cards();
+        }
+    }
+
+    function checkStep2() {
+        const msg = document.getElementById('msg2');
+        msg.style.display = 'block';
+        if (selectedOpts[2] === true) {
+            msg.className = "msg-box msg-success";
+            msg.innerHTML = "🎉 정답입니다! 내연기관의 가장 핵심인 [흡입 ➔ 압축 ➔ 폭발 ➔ 배기] 순서 규칙을 정확하게 추상화하셨습니다.";
+            confetti({ particleCount: 50 });
+        } else {
+            msg.className = "msg-box msg-error";
+            msg.innerHTML = "❌ 오답입니다! 보기가 재배치되었습니다. 다시 올바른 순서를 선택해보세요.";
+            renderStepOptions(2, step2Data);
+        }
+    }
+
+    function checkStep3() {
+        const msg = document.getElementById('msg3');
+        msg.style.display = 'block';
+        if (selectedOpts[3] === true) {
+            msg.className = "msg-box msg-success";
+            msg.innerHTML = "🎉 정답입니다! [배기] 행정 다음에는 다시 [흡입]으로 시작되는 순환 패턴을 잘 확인하셨습니다.";
+            confetti({ particleCount: 50 });
+        } else {
+            msg.className = "msg-box msg-error";
+            msg.innerHTML = "❌ 오답입니다! 보기가 재배치되었습니다. 순환 패턴을 다시 생각해 맞춰보세요.";
+            renderStepOptions(3, step3Data);
+        }
+    }
+
+    function checkStep4() {
+        const sel1 = document.getElementById('codeBlock1');
+        const sel2 = document.getElementById('codeBlock2');
+        const sel3 = document.getElementById('codeBlock3');
+        const sel4 = document.getElementById('codeBlock4');
+
+        const isOk1 = sel1.options[sel1.selectedIndex]?.dataset.correct === "true";
+        const isOk2 = sel2.options[sel2.selectedIndex]?.dataset.correct === "true";
+        const isOk3 = sel3.options[sel3.selectedIndex]?.dataset.correct === "true";
+        const isOk4 = sel4.options[sel4.selectedIndex]?.dataset.correct === "true";
+
+        const msg = document.getElementById('msg4');
+        msg.style.display = 'block';
+
+        if (isOk1 && isOk2 && isOk3 && isOk4) {
+            msg.className = "msg-box msg-success";
+            msg.innerHTML = "🎉 정답입니다! 4행정 내연기관의 알고리즘 순서(흡입 ➔ 압축 ➔ 폭발 ➔ 배기)를 정확히 작성하셨습니다.";
+            confetti({ particleCount: 50 });
+        } else {
+            msg.className = "msg-box msg-error";
+            msg.innerHTML = "❌ 순서에 오류가 있어 선택항목이 셔플되었습니다.<br>• [흡입 ➔ 압축 ➔ 폭발 ➔ 배기] 흐름에 맞게 다시 완성해보세요!";
+            renderStep4Options();
+        }
+    }
+
+    let finalCorrectIdx = 0;
+
+    function initFinalChallenge() {
+        document.getElementById('msg5').style.display = 'none';
+        document.getElementById('btnCheck5').style.display = 'block';
+        document.getElementById('btnNext5').style.display = 'none';
+        selectedOpts[5] = null;
+
+        const cylOptions = [2, 4, 6, 8];
+        const cylCount = cylOptions[Math.floor(Math.random() * cylOptions.length)];
+        setupSimulator(cylCount);
+
+        const thead = document.getElementById('finalTableHead');
+        const tbody = document.getElementById('finalTableBody');
+
+        let headHtml = `<tr><th>실린더</th>`;
+        for (let i = 0; i < 4; i++) headHtml += `<th>${i + 1}단계</th>`;
+        headHtml += `</tr>`;
+        thead.innerHTML = headHtml;
+
+        let bodyHtml = '';
+        const blanks = [];
+
+        for (let r = 0; r < cylCount; r++) {
+            bodyHtml += `<tr><th>${r + 1}번</th>`;
+            const offset = cylinderOffsets[r];
+            const blankCol = Math.floor(Math.random() * 4);
+
+            for (let c = 0; c < 4; c++) {
+                const stage = STAGES[(offset + c) % 4];
+                if (c === blankCol) {
+                    bodyHtml += `<td class="blank-cell">?</td>`;
+                    blanks.push({ r: r + 1, stage });
+                } else {
+                    bodyHtml += `<td>${stage}</td>`;
+                }
+            }
+            bodyHtml += `</tr>`;
+        }
+        tbody.innerHTML = bodyHtml;
+
+        const targetBlank = blanks[0];
+        const correctStage = targetBlank.stage;
+        const choices = [correctStage];
+        while (choices.length < 4) {
+            const rand = STAGES[Math.floor(Math.random() * 4)];
+            if (!choices.includes(rand)) choices.push(rand);
+        }
+
+        // 선택 보기 무작위 셔플
+        const shuffledChoices = shuffleArray(choices);
+        finalCorrectIdx = shuffledChoices.indexOf(correctStage);
+
+        const optGrid = document.getElementById('optStep5');
+        optGrid.innerHTML = '';
+        shuffledChoices.forEach((c, idx) => {
+            const btn = document.createElement('div');
+            btn.className = 'opt-btn';
+            btn.onclick = () => selectOpt(btn, 5, idx === finalCorrectIdx);
+            btn.innerHTML = `<span class="opt-badge">${String.fromCharCode(65 + idx)}</span> ${targetBlank.r}번 실린더 빈칸 행정: <span>${c}</span>`;
+            optGrid.appendChild(btn);
+        });
+    }
+
+    function checkStep5() {
+        const msg = document.getElementById('msg5');
+        msg.style.display = 'block';
+        if (selectedOpts[5] === true) {
+            msg.className = "msg-box msg-success";
+            msg.innerHTML = "🎉 정답입니다! CT 4단계를 종합하여 내연기관 패턴 문제를 올바르게 해결했습니다!";
+            confetti({ particleCount: 80 });
+            document.getElementById('btnCheck5').style.display = 'none';
+            document.getElementById('btnNext5').style.display = 'block';
+        } else {
+            msg.className = "msg-box msg-error";
+            msg.innerHTML = "❌ 오답입니다! 새로운 무작위 문제가 자동으로 재생성됩니다.";
+            setTimeout(() => {
+                initFinalChallenge();
+            }, 1200);
+        }
+    }
+
+    window.onload = () => {
+        canvas = document.getElementById('engineCanvas');
+        ctx = canvas.getContext('2d');
+        bindDragEvents();
+        switchStep(1);
+        renderEngine();
+    };
+</script>
+
+</body>
+</html>
